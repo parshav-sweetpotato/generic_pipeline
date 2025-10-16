@@ -86,9 +86,9 @@ output/
 To test with the coffee example:
 
 ```bash
-# Assuming you have coffee_pipeline data
+# Using included sample coffee data
 python pipeline_runner.py \
-  --data-source ../coffee_pipeline/coffee_shipment_master.csv \
+  --data-source ./sample_coffee_shipment_master.csv \
   --products-definition config/products_definition_example.json \
   --product-attributes-schema config/product_attributes_schema_example.json \
   --attribute-definitions config/attribute_definitions_example.json \

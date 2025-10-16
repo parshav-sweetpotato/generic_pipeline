@@ -199,7 +199,7 @@ python pipeline_runner.py \
 
 ```bash
 python pipeline_runner.py \
-  --data-source ../coffee_pipeline/coffee_shipment_master.csv \
+  --data-source ./sample_coffee_shipment_master.csv \
   --products-definition ./config/products_definition_example.json \
   --product-attributes-schema ./config/product_attributes_schema_example.json \
   --attribute-definitions ./config/attribute_definitions_example.json \
@@ -214,7 +214,7 @@ The pipeline generates the following outputs in the specified output directory:
 
 ```
 output_dir/
-├── shipment_master.csv                      # Loaded data
+├── sample_coffee_shipment_master.csv        # Sample coffee shipment data
 ├── shipment_master_classified.csv           # With product categories
 ├── classifications.json                      # Aggregated classifications
 ├── classifications_flat.csv                  # Flat CSV with all attributes

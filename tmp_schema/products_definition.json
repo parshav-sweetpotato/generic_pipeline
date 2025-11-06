@@ -1,0 +1,39 @@
+{
+  "hs_code": "9011",
+  "product_categories": [
+    "Unroasted Coffee Beans",
+    "Washed Arabica Coffee",
+    "Flavored Coffee Products",
+    "Packaged Coffee Gifts"
+  ],
+  "category_descriptions": {
+    "Unroasted Coffee Beans": "Raw coffee beans that have not yet been roasted, often intended for industrial processing or roasting.",
+    "Washed Arabica Coffee": "Processed Arabica coffee beans that have undergone a washing process to remove the outer layers.",
+    "Flavored Coffee Products": "Coffee products that have been enhanced with additional flavors, often sold in retail packaging.",
+    "Packaged Coffee Gifts": "Coffee products packaged as gifts, often including additional items or special packaging."
+  },
+  "_generated_at": "2025-11-06T12:52:33.063996Z",
+  "_source": "auto_inference",
+  "_representative_goods": {
+    "Unroasted Coffee Beans": [
+      "COFFEE ,  UNROASTED",
+      "ARABICA GREEN COFFEE BEANS",
+      "GREEN COFFEE ARABICA TANZANIA"
+    ],
+    "Washed Arabica Coffee": [
+      "TANZANIA WASHED ARABICA COFFEE",
+      "WASHED TANZANIA ARABICA COFFEE",
+      "WASHED TANZANIA ARABICA LOW GRADE"
+    ],
+    "Flavored Coffee Products": [
+      "Black raspberry coffee",
+      "COFFEE BEANS OF ASSORTED FLAVOR",
+      "coffee almonds"
+    ],
+    "Packaged Coffee Gifts": [
+      "Phu Quy Tet gift box",
+      "gift item",
+      "100 grams/box"
+    ]
+  }
+}

@@ -1,0 +1,130 @@
+{
+  "9011": {
+    "version": "2025-11-06T12:52:46.069718Z",
+    "products": {
+      "Unroasted Coffee Beans": {
+        "attributes": {
+          "Coffee_Type": [
+            "Arabica",
+            "Robusta"
+          ],
+          "Origin_Country": [
+            "Uganda",
+            "Vietnam",
+            "Brazil",
+            "Colombia",
+            "Tanzania",
+            "India",
+            "Ethiopia",
+            "Guinea"
+          ],
+          "Processing_Method": [
+            "Natural",
+            "Natural Dried"
+          ],
+          "Screen_Size": [
+            "Screen 12",
+            "Screen 15",
+            "Screen 18",
+            "Screen 1500",
+            "Screen 1700",
+            "Screen 1800",
+            "Sc 12",
+            "Sc 15",
+            "Sc 1500",
+            "Sc 18",
+            "Sc 1800"
+          ]
+        }
+      },
+      "Washed Arabica Coffee": {
+        "attributes": {
+          "Origin_Country": [
+            "Tanzania",
+            "Uganda"
+          ],
+          "Processing_Method": [
+            "Washed",
+            "Natural",
+            "Fully Washed"
+          ],
+          "Coffee_Grade": [
+            "Aa-ab Plus",
+            "Ab",
+            "Low Grade"
+          ],
+          "Certifications": [
+            "Rfa"
+          ],
+          "Coffee_Variety": [
+            "Bugisu"
+          ]
+        }
+      },
+      "Flavored Coffee Products": {
+        "attributes": {
+          "Flavor": [
+            "Black Raspberry",
+            "Assorted"
+          ],
+          "Package_Weight": [
+            "300 Gr",
+            "700 Gr",
+            "60 Kgs"
+          ],
+          "Origin_Country": [
+            "Vietnam",
+            "United Kingdom"
+          ]
+        }
+      },
+      "Packaged Coffee Gifts": {
+        "attributes": {
+          "Brand": [
+            "Maison Gourmet"
+          ],
+          "Coffee_Type": [
+            "Coffee Almonds"
+          ],
+          "Package_Type": [
+            "Gift Box"
+          ],
+          "Origin_Country": [
+            "Vietnam"
+          ]
+        }
+      }
+    },
+    "_product_categories": [
+      "Unroasted Coffee Beans",
+      "Washed Arabica Coffee",
+      "Flavored Coffee Products",
+      "Packaged Coffee Gifts"
+    ],
+    "_generation_notes": {
+      "Unroasted Coffee Beans": {
+        "model_attribute_count": 4,
+        "fallback_attributes": [],
+        "final_attribute_count": 4
+      },
+      "Washed Arabica Coffee": {
+        "model_attribute_count": 5,
+        "fallback_attributes": [],
+        "final_attribute_count": 5
+      },
+      "Flavored Coffee Products": {
+        "model_attribute_count": 3,
+        "fallback_attributes": [],
+        "final_attribute_count": 3
+      },
+      "Packaged Coffee Gifts": {
+        "model_attribute_count": 4,
+        "fallback_attributes": [],
+        "final_attribute_count": 4
+      }
+    }
+  },
+  "_generated_at": "2025-11-06T12:52:46.069731Z",
+  "_source": "auto_inference",
+  "_classified_rows": 229
+}

@@ -12,10 +12,12 @@ import os
 import threading
 import pickle
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+
+from config_models import ProductDefinition, load_product_definition
 
 
 logger = logging.getLogger(__name__)
@@ -52,10 +54,10 @@ def create_classification_schema(product_categories: List[str]) -> Dict[str, Any
 
 class ProductClassifier:
     """Product classifier with LLM-based batch classification."""
-    
+
     def __init__(
         self,
-        products_definition: Dict[str, Any],
+        products_definition: Union[ProductDefinition, Dict[str, Any]],
         model_name: str = "gemini-2.0-flash",
         checkpoint_file: Optional[str] = None,
         batch_size: int = 10,
@@ -80,9 +82,28 @@ class ProductClassifier:
         api_key : str, optional
             Google API key (uses environment variable if not provided)
         """
-        self.products_definition = products_definition
-        self.product_categories = products_definition['product_categories']
-        self.category_descriptions = products_definition.get('category_descriptions', {})
+        if isinstance(products_definition, ProductDefinition):
+            definition = products_definition
+        else:
+            definition = ProductDefinition(
+                hs_code=str(products_definition.get('hs_code', "")).strip(),
+                product_categories=[
+                    str(c).strip() for c in products_definition.get('product_categories', []) if str(c).strip()
+                ],
+                category_descriptions={
+                    str(k).strip(): str(v).strip()
+                    for k, v in (products_definition.get('category_descriptions', {}) or {}).items()
+                },
+                metadata={
+                    k: v
+                    for k, v in products_definition.items()
+                    if k not in {'hs_code', 'product_categories', 'category_descriptions'}
+                }
+            )
+
+        self.product_definition = definition
+        self.product_categories = definition.product_categories
+        self.category_descriptions = definition.category_descriptions
         
         # Configure API
         if api_key:
@@ -379,13 +400,10 @@ def classify_products(
     pd.DataFrame
         Classified DataFrame with 'category' column
     """
-    # Load products definition
-    with open(products_definition_path, 'r', encoding='utf-8') as f:
-        products_definition = json.load(f)
-    
-    # Validate products definition
-    if 'product_categories' not in products_definition:
-        raise ValueError("products_definition must contain 'product_categories' key")
+    # Load products definition via shared helpers
+    products_definition = load_product_definition(products_definition_path)
+    if not products_definition.product_categories:
+        raise ValueError("products_definition must contain at least one product category")
     
     # Load input data
     logger.info(f"Loading data from {input_csv}")

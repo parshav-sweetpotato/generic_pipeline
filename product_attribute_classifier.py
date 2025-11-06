@@ -17,6 +17,13 @@ import pandas as pd
 from tqdm import tqdm
 import google.generativeai as genai
 
+from config_models import (
+    AttributeDefinitions,
+    AttributeSchema,
+    load_attribute_definitions as load_attribute_definitions_model,
+    load_attribute_schema,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -174,64 +181,32 @@ class TokenTracker:
         return self.used
 
 
-def load_product_attribute_schema(path: str) -> Dict[str, Any]:
-    """
-    Load attribute/value schema from JSON.
-    
-    Expected structure:
-    {
-      "hs_code": {
-          "version": "...",
-          "products": {
-             "ProductName": {
-                "attributes": { "AttrType": ["Value1", "Value2", ...] }
-             }
-          }
-      }
-    }
-    """
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"Attribute schema file not found: {path}")
-    
-    with open(path, 'r', encoding='utf-8') as f:
-        raw = json.load(f)
-    
+def load_product_attribute_schema(path: str) -> Dict[str, Dict[str, Dict[str, List[str]]]]:
+    """Load attribute/value schema via shared config models."""
+    schema_model: AttributeSchema = load_attribute_schema(path)
     normalized: Dict[str, Dict[str, Dict[str, List[str]]]] = {}
-    for hs4, hs_block in raw.items():
-        if not isinstance(hs_block, dict):
-            continue
-        products = hs_block.get('products', {}) or {}
-        for product_name, pdata in products.items():
-            if not isinstance(pdata, dict):
-                continue
-            attrs = pdata.get('attributes', {}) or {}
-            cleaned_attrs: Dict[str, List[str]] = {}
-            for attr_type, values in attrs.items():
-                if not isinstance(values, list):
-                    continue
-                cleaned = [v.strip() for v in values if isinstance(v, str) and v.strip()]
-                cleaned_attrs[attr_type] = cleaned
-            if cleaned_attrs:
-                normalized.setdefault(hs4, {})[product_name] = cleaned_attrs
-    
+    for hs4, entry in schema_model.entries.items():
+        products: Dict[str, Dict[str, List[str]]] = {}
+        for product_name, attr_set in entry.products.items():
+            products[product_name] = attr_set.normalized_values()
+        if products:
+            normalized[hs4] = products
     return normalized
 
 
 def load_attribute_definitions(path: str) -> Dict[str, str]:
-    """Load attribute definitions for prompting."""
-    if not os.path.exists(path):
+    """Load attribute definitions for prompting via shared config models."""
+    try:
+        definitions_model: AttributeDefinitions = load_attribute_definitions_model(path)
+    except FileNotFoundError:
         logger.warning(f"Attribute definitions file not found: {path}")
         return {}
-    
-    try:
-        with open(path, 'r', encoding='utf-8') as f:
-            definitions = json.load(f)
-        attr_definitions = {k: v for k, v in definitions.items() if k.startswith('attr_')}
-        logger.info(f"Loaded {len(attr_definitions)} attribute definitions")
-        return attr_definitions
-    except Exception as e:
-        logger.warning(f"Failed to load attribute definitions: {e}")
+    except Exception as exc:
+        logger.warning(f"Failed to load attribute definitions: {exc}")
         return {}
+
+    logger.info(f"Loaded {len(definitions_model.definitions)} attribute definitions")
+    return definitions_model.definitions
 
 
 def load_flat_products(csv_path: str) -> pd.DataFrame:
@@ -765,8 +740,9 @@ def classify_attributes(
     model = genai.GenerativeModel(config['model_name'])
     
     # Load schemas
+    schema_model = load_attribute_schema(product_attributes_schema_path)
     schema_map = load_product_attribute_schema(product_attributes_schema_path)
-    hs_available = set(schema_map.keys())
+    hs_available = set(schema_model.entries.keys())
     attr_definitions = load_attribute_definitions(attribute_definitions_path)
     
     # Load data

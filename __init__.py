@@ -8,6 +8,7 @@ Main components:
 - data_loader: Template for loading shipment data
 - products_classifier: LLM-based product categorization
 - product_attribute_classifier: Multi-attribute extraction and classification
+- schema_generator: Auto-generates product schemas from shipment data
 - pipeline_runner: Orchestration script for end-to-end workflow
 """
 

@@ -8,20 +8,22 @@ Orchestrates the complete classification workflow:
 4. Output generation
 """
 
-import os
-import sys
 import argparse
 import logging
+import os
+import sys
 import time
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import dotenv
 from data_loader import load_data, validate_shipment_data
 from products_classifier import classify_products
 from product_attribute_classifier import classify_attributes
+from schema_generator import SchemaGenerator, SchemaGenerationResult
 from utils.build_product_schema_master import build_schema_master
 from utils.combined_shipment_id_to_attr_json import combine_shipment_attributes
 
@@ -36,6 +38,14 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+
+# Load environment variables from nearest .env (workspace root)
+DOTENV_PATH = dotenv.find_dotenv(usecwd=True)
+if DOTENV_PATH:
+    dotenv.load_dotenv(DOTENV_PATH)
+else:
+    dotenv.load_dotenv()
 
 
 def setup_output_directories(base_output_dir: str) -> Dict[str, str]:
@@ -63,7 +73,12 @@ def run_pipeline(
     skip_attribute_classification: bool = False,
     run_helpers: bool = True,
     resume: bool = True,
-    config_overrides: Optional[Dict[str, Any]] = None
+    config_overrides: Optional[Dict[str, Any]] = None,
+    *,
+    auto_generate_schema: bool = False,
+    hs_code: Optional[str] = None,
+    schema_output_dir: Optional[str] = None,
+    schema_generation_overrides: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Run the complete classification pipeline.
@@ -123,6 +138,17 @@ def run_pipeline(
         'timing': {}
     }
     
+    schema_generator: Optional[SchemaGenerator] = None
+    product_schema_result: Optional[SchemaGenerationResult] = None
+    attribute_schema_result: Optional[SchemaGenerationResult] = None
+    schema_dir: Optional[str] = None
+
+    if auto_generate_schema and skip_product_classification:
+        logger.error("Auto schema generation requires the product classification stage to run.")
+        results['errors'].append('schema_generation: requires product classification step')
+        results['status'] = 'failed'
+        return results
+
     # Step 1: Data Loading
     if not skip_data_loading:
         logger.info("\n" + "=" * 80)
@@ -158,7 +184,51 @@ def run_pipeline(
             results['errors'].append('data_loading: File not found')
             results['status'] = 'failed'
             return results
-    
+
+    # Optional: Schema generation
+    if auto_generate_schema:
+        logger.info("\n" + "=" * 80)
+        logger.info("SCHEMA GENERATION - PRODUCT INFERENCE")
+        logger.info("=" * 80)
+
+        if skip_data_loading and not os.path.exists(shipment_master_csv):
+            logger.error(
+                "Auto schema generation requires a shipment master CSV. Provide one or run without --skip-data-loading."
+            )
+            results['errors'].append('schema_generation: missing shipment master CSV')
+            results['status'] = 'failed'
+            return results
+
+        if not hs_code:
+            logger.error("HS code is required when auto-generating schema")
+            results['errors'].append('schema_generation: missing hs_code')
+            results['status'] = 'failed'
+            return results
+
+        schema_dir = schema_output_dir or os.path.join(output_dir, "generated_schema")
+
+        try:
+            schema_generator = SchemaGenerator(generation_config=schema_generation_overrides)
+            product_schema_result = schema_generator.generate_product_definition(
+                hs_code=hs_code,
+                shipment_csv=shipment_master_csv,
+                output_dir=schema_dir,
+            )
+            products_definition = product_schema_result.products_definition_path or products_definition
+            results['steps_completed'].append('product_inference')
+            results['product_inference'] = {
+                'hs_code': hs_code,
+                'output_dir': schema_dir,
+                'categories': product_schema_result.product_definition.product_categories
+                if product_schema_result.product_definition
+                else None,
+            }
+        except Exception as e:
+            logger.error(f"✗ Product inference failed: {str(e)}")
+            results['errors'].append(f'product_inference: {str(e)}')
+            results['status'] = 'failed'
+            return results
+
     # Step 2: Product Classification
     if not skip_product_classification:
         logger.info("\n" + "=" * 80)
@@ -171,13 +241,14 @@ def run_pipeline(
             logger.info(f"Classifying products...")
             logger.info(f"Products definition: {products_definition}")
             
+            classify_kwargs = dict(config_overrides or {})
             df_classified = classify_products(
                 input_csv=shipment_master_csv,
                 products_definition_path=products_definition,
                 output_csv=shipment_master_classified_csv,
                 checkpoint_file=checkpoint_file,
                 resume=resume,
-                **(config_overrides or {})
+                **classify_kwargs
             )
             
             logger.info(f"✓ Product classification completed: {len(df_classified)} records")
@@ -187,6 +258,52 @@ def run_pipeline(
                 'records': len(df_classified),
                 'categories': df_classified['category'].nunique()
             }
+
+            if auto_generate_schema:
+                logger.info("\n" + "=" * 80)
+                logger.info("SCHEMA GENERATION - ATTRIBUTE INFERENCE")
+                logger.info("=" * 80)
+
+                if schema_generator is None:
+                    schema_generator = SchemaGenerator(generation_config=schema_generation_overrides)
+                if schema_dir is None:
+                    schema_dir = os.path.join(output_dir, "generated_schema")
+
+                try:
+                    attribute_schema_result = schema_generator.generate_attribute_configs_from_classifications(
+                        hs_code=hs_code,
+                        classified_csv=shipment_master_classified_csv,
+                        output_dir=schema_dir,
+                        product_definition_path=products_definition,
+                        product_definition=(
+                            product_schema_result.product_definition
+                            if product_schema_result and product_schema_result.product_definition
+                            else None
+                        ),
+                        overwrite=True,
+                    )
+                    if attribute_schema_result.product_attributes_schema_path:
+                        product_attributes_schema = attribute_schema_result.product_attributes_schema_path
+                    if attribute_schema_result.attribute_definitions_path:
+                        attribute_definitions = attribute_schema_result.attribute_definitions_path
+                    if attribute_schema_result.attribute_schema:
+                        product_entry = attribute_schema_result.attribute_schema.entries.get(hs_code)
+                    else:
+                        product_entry = None
+                    results['steps_completed'].append('attribute_schema_generation')
+                    results['attribute_schema_generation'] = {
+                        'hs_code': hs_code,
+                        'output_dir': schema_dir,
+                        'products_with_attributes': (
+                            list(product_entry.products.keys()) if product_entry else None
+                        ),
+                    }
+                except Exception as e:
+                    logger.error(f"✗ Attribute inference failed: {str(e)}")
+                    results['errors'].append(f'attribute_schema_generation: {str(e)}')
+                    results['status'] = 'failed'
+                    return results
+
         except Exception as e:
             logger.error(f"✗ Product classification failed: {str(e)}")
             results['errors'].append(f'product_classification: {str(e)}')
@@ -403,6 +520,39 @@ Example usage:
         default=10,
         help='Items per LLM call for attribute classification (default: 10)'
     )
+    parser.add_argument(
+        '--auto-generate-schema',
+        action='store_true',
+        help='Infer product schema from the input data using Gemini before classification'
+    )
+    parser.add_argument(
+        '--hs-code',
+        type=str,
+        help='HS-4 code to target when auto-generating schema'
+    )
+    parser.add_argument(
+        '--schema-output-dir',
+        type=str,
+        help='Directory where generated schema files should be written (default: <output-dir>/generated_schema)'
+    )
+    parser.add_argument(
+        '--schema-model',
+        type=str,
+        default=None,
+        help='Override the Gemini model used for schema generation (default: gemini-2.0-flash)'
+    )
+    parser.add_argument(
+        '--schema-temperature',
+        type=float,
+        default=None,
+        help='Override temperature for schema generation (default: 0.0)'
+    )
+    parser.add_argument(
+        '--schema-max-samples',
+        type=int,
+        default=None,
+        help='Maximum total goods descriptions to sample for schema generation (default: 120)'
+    )
     
     args = parser.parse_args()
     
@@ -415,6 +565,17 @@ Example usage:
         'items_per_call': args.items_per_call,
     }
     
+    schema_overrides = {}
+    if args.schema_model:
+        schema_overrides['model_name'] = args.schema_model
+    if args.schema_temperature is not None:
+        schema_overrides['temperature'] = args.schema_temperature
+    if args.schema_max_samples is not None:
+        schema_overrides['max_total_samples'] = args.schema_max_samples
+
+    if args.auto_generate_schema and not args.hs_code:
+        parser.error('--hs-code is required when --auto-generate-schema is set')
+
     # Run pipeline
     try:
         results = run_pipeline(
@@ -428,7 +589,11 @@ Example usage:
             skip_attribute_classification=args.skip_attribute_classification,
             run_helpers=not args.no_helpers,
             resume=not args.no_resume,
-            config_overrides=config_overrides
+            config_overrides=config_overrides,
+            auto_generate_schema=args.auto_generate_schema,
+            hs_code=args.hs_code,
+            schema_output_dir=args.schema_output_dir,
+            schema_generation_overrides=schema_overrides or None,
         )
         
         if results['status'] == 'failed':
